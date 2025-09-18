@@ -22,15 +22,13 @@ Does the project build first off? - yes.
 
 Created a readme to record steps and ideas.
 
-Viewed the code and notice some obvious issues from the get go that would prevent me from adding some test coverage before starting to refactor.
+Viewed the code and noticed some obvious issues from the get go that would prevent me from adding some test coverage before starting to refactor.
 
 First goal is to get a working end to end test covering the code to verify that any refactoring does not cause an issue. Given the branches we'd need at least 4 tests to gain enough confidence. One for each payment scheme and the failure flow when no update is made. This is not exhaustive code coverage but good enough to unlock some refactoring steps later.
 
-Relying on leaning on the compiler and a quick debugging session I could see that the account data store was a problem. I extracted an interface and pushed the logic for determining the store to use up a layer. By commenting this out and adding a stub I was able to test at least the happy path flow for BACS. I rinse repeated this for the other 2 scenarios.
+Relying on leaning on the compiler and a quick debugging session I could see that the account data store was a problem. I extracted an interface and pushed the logic for determining the store to use up a layer. By commenting this out and adding a stub I was able to test at least the happy path flow for BACS. I repeated this for the other 2 scenarios. The datastore to use is fixed once the app starts so pushing it up to the composition root makes sense, either the real datastore is used or the backup. By relying on the interface however the service is unaware of the concrete implementation used.
 
-The configuration manager was also a problem but due to the way it was used meant I was able to push the logic for choosing the correct implementation up a level. This is fixed once the app starts so pushing it up to the composition root makes sense, either the real datastore is used or the backup. By relying on the interface however the service is unaware of the concrete implementation used.
-
-The final part of the happy path scenario is to cover that an account is updated if successful validated. There are other branches not tested here currently but with my plan to extract the logic to standalone classes I'll add the missing coverage as part of that. The safety net of the top level tests against the payment service give me some confidence however. In order to do this I introduced the use of a mock object (Moq) to verify the account update is actually called. Once this scenario was covered the other 2 were just rinse repeat.
+The final part of the happy path scenario is to cover that an account is updated if successful validated. There are other branches not tested here currently but with my plan to extract the logic to standalone classes I'll add the missing coverage as part of that. The safety net of the top level tests against the payment service give me some confidence however. In order to do this I introduced the use of a mock object (Moq) to verify the account update is actually called. Once this scenario was covered the other two were just repeated.
 
 I introduced a console app to run the app for manual verification. While the automated tests are easier this just ensures I don't break the object graph and provides some extra compile type safety. In a real scenario this would correspond to `Main` or your application root.
 
@@ -38,7 +36,7 @@ The next obvious thing to tackle was the validation logic. There was a clear pat
 
 With the validation now standalone the next bit of duplication comes from repeatedly checking if the account is not null. I originally enabled nullable reference types in the csproj to help detect this. I'm quite a fan of this in TypeScript so this was a simple way to achieve a similar setup, however it dawned on me after that this causes changes within the request class which could be seen as a breaking change. After reverting this I coded the check manually but would encourage this use of this with more time.
 
-With the changes stable again I wrapped some tests around the individual payment request validators. In a real scenario this logic would be more complex but for now this is similar to the original code but with the excessive null checking removed. I also introduced the AccountBuilder as a test util to make test setup quicker and easier once I noticed duplication between some of the tests.
+With the changes stable again I wrapped some tests around the individual payment request validators. In a real scenario this logic would be more complex but for now this is similar to the original code but with the excessive null checking removed. I also introduced the `AccountBuilder` as a test util to make test setup quicker and easier once I noticed duplication between some of the tests.
 
 Finally I extracted a composite validator for use within the payment service. I was treating this service as an application service, so while a bit overkill now the validator can be provided as a dependency. In a real scenario there would likely be external dependencies that each validator rely on also. The composite validator allows the logic to change or share common rules without impacting the overall service logic. Note the original tests have been preserved that were used as part of the refactor. These are operating as acceptance tests now, so while they don't cover all the flows for each scheme – they provide value by ensuring the core journey is still hanging together.
 
@@ -68,14 +66,13 @@ The instructions state not to change the signature of the method on the service,
 
 As mentioned above, I'd opt to enable nullable reference types in the csproj. The DX here is great and combined with good tests provides nice benefit for developers coming into this codebase fresh.
 
-The validation in the validators themselves is very similar to the original setup. Given the simplicity of this for now I'm OK with this but for a real scenario with more complex rules this could be replaced with a proper validation library like FluentValidation or similar. The errors could be more structured, translated and so on.
+The validation in the validators themselves is very similar to the original setup. Given the simplicity of this for now I'm OK with this as is. However for a real scenario with more complex rules this could be replaced with a proper validation library like FluentValidation or similar. The errors could be more structured, translated and so on.
 
-There's a few potential places were more recent C# language features could be used, e.g. Primary constructors. Personally I'm not too familiar with these so left them out. In a real scenario we'd discuss this with the team or follow the code guidelines in place but otherwise I'm considering them fairly subjective.
+There's a few potential places where more recent C# language features could be used, e.g. Primary constructors. Personally I'm not too familiar with these so left them out. In a real scenario we'd discuss this with the team or follow the code guidelines in place but otherwise I'm considering them fairly subjective.
 
 The composite `PaymentRequestValidator` could be enhanced with some tests that detect if another payment scheme has been added. In that case the test would fail and this guard rail would ensure that the dev adds a corresponding validator for the scheme and updates other areas as needed.
 
-I'm relying on a top level try/catch for the service to ensure the client of this will always get a valid or invalid response, never a unhandled exception. The assumption here is that the other parts of the code such as the data access are handling errors and throwing. One alternative would be to replace this with a Result pattern instead if this was preferred with the team. We could be more specific on the type of error caught too, but as the data access code is not implemented I went with a top level exception type instead.
+I'm relying on a top level try/catch for the service to ensure the client of this will always get a valid or invalid response, never a unhandled exception. The assumption here is that the other parts of the code such as the data access are handling errors and throwing. One alternative would be to replace this with a `Result` pattern instead if this was preferred with the team. We could be more specific on the type of error caught too, but as the data access code is not implemented I went with a top level exception type instead.
 
 Some of the tests are starting to show patterns with test data. We could switch some of these out for more data driven tests or use TestCase. See
 `ClearBank.DeveloperTest.Tests/Validators/PaymentRequestValidator.Test.cs` for an example.
-
